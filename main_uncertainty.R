@@ -1,4 +1,3 @@
-library(cmaes)
 library(ggplot2)
 
 # Set seed for reproducibility
