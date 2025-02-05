@@ -166,21 +166,6 @@ generate_data <- function(n = 200, separation = 2, noise = 0.1, ood_fraction = 0
 #   return(c(u_a, u_e, p_pos, p_neg))
 # }
 
-# Generate dataset
-df <- generate_data(n = 200, separation = 2, noise = 0.01, ood_fraction = 0)
-
-# Plot the data
-ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
-  geom_point(size = 3, alpha = 0.7) +
-  scale_color_manual(values = c("blue", "red", "black"), na.value = "gray") +
-  labs(title = "Synthetic Data for Logistic Regression",
-       color = "Class (NA = OOD)") +
-  theme_minimal()
-
-
-# try out for observation
-
-evaluate(df, -2.5, 0)
 
 ### MAIN PART
 
@@ -193,9 +178,6 @@ evaluate <- function(df, x1, x2) {
   # Extract MLE estimates
   mle_coef <- coef(logit_model)
   
-  print(df$y)
-  print(prod(df$y))
-  
   logit <- function(x) {
     log(x / (1 - x))
   }
@@ -204,37 +186,37 @@ evaluate <- function(df, x1, x2) {
     1 / (1 + exp(-x))
   }
   
-  prediction <- function(coeff) {
-   sigmoid(coeff[1] + coeff[2] * x1 + coeff[3] * x2)
+  prediction <- function(coeff, X1, X2) {
+   sigmoid(coeff[1] + coeff[2] * X1 + coeff[3] * X2)
   }
   
-  likelihood <- function(coeff, X1, X2, y) {
-    P <- sigmoid(coeff[1] + coeff[2] * X1 + coeff[3] * X2)  # Compute probabilities
-    likelihood <- prod(P^y * (1 - P)^(1 - y))   # Compute likelihood
+  log_likelihood <- function(coeff, X1, X2, y) {
+    P <- prediction(coeff, X1, X2)  # Compute probabilities
+    likelihood <- sum(y * log(P) + (1 - y) * log(1 - P))   # Compute likelihood
     return(likelihood)
   }
   
-  # cat("MLE", mle_coefficients)
+  mle_lik <- log_likelihood(mle_coef, df$X1, df$X2, df$y)
   
-  rhs_pos <- function(coeff) {max(2 * prediction(coeff) - 1, 0)}
-  rhs_neg <- function(coeff) {max(1 - 2 * prediction(coeff), 0)}
+  rhs_pos <- function(coeff) {max(2 * prediction(coeff, x1, x2) - 1, 0)}
+  rhs_neg <- function(coeff) {max(1 - 2 * prediction(coeff, x1, x2), 0)}
   
   Q_p <- seq(0.5, 1, length.out = 52)[-c(1, 52)]
   Q_n <- seq(0, 0.5, length.out = 52)[-c(1, 52)]
   
-  phi_pos <- rhs_pos(mle_coef)
-  phi_neg <- rhs_neg(mle_coef)
+  phi_pos <- log(rhs_pos(mle_coef))
+  phi_neg <- log(rhs_neg(mle_coef))
   
-  alpha_pos_values <- c()      
-  alpha_neg_values <- c()    
+  alpha_pos_values <- list()      
+  alpha_neg_values <- list()    
   
   objective_function <- function(coeff) {
-    return(log(likelihood(coeff, df$X1, df$X2, df$y)))
+    return(log_likelihood(coeff, df$X1, df$X2, df$y))
   }
   
   grad_objective_function <- function(coeff) {
     # Compute predicted probabilities
-    P <- prediction(coeff)
+    P <- prediction(coeff, df$X1, df$X2)
     
     # Compute residuals (difference between actual and predicted values)
     residuals <- df$y - P
@@ -251,10 +233,10 @@ evaluate <- function(df, x1, x2) {
     return(c(1, x1, x2))  # Gradient vector
   }
   
-  for (i in 1:52) {
+  for (i in 1:50) {
     
     alpha_p <- max(Q_p)
-    alpha_n <- max(Q_n)
+    alpha_n <- min(Q_n)
     
     if(2 * alpha_p - 1 > phi_pos) {
 
@@ -271,15 +253,18 @@ evaluate <- function(df, x1, x2) {
         eval_g_eq = constraint_function,  # Equality constraint
         eval_jac_g_eq = grad_constraint_gradient,
         opts = list(
-          "algorithm" = "NLOPT_LD_AUGLAG_EQ",  # Sequential quadratic programming
+          maximize = TRUE,
+          "algorithm" = "NLOPT_LD_SLSQP",  # Sequential quadratic programming
           "maxeval" = 500,
           "xtol_rel" = 1e-6
         )
       )
       
-      phi_pos <- max(phi_pos, min(exp(result$objective), 2 * alpha_p -1))
+      phi_pos <- max(phi_pos, min(result$objective - mle_lik, log(2 * alpha_p - 1)))
       
-      alpha_pos_values[i] <- result$solution
+      alpha_pos_values[[i]] <- result$solution
+      
+      cat("n_it", result$iterations)
     }
     
     if(1 - 2 * alpha_n > phi_neg) {
@@ -297,15 +282,18 @@ evaluate <- function(df, x1, x2) {
         eval_g_eq = constraint_function,  # Equality constraint
         eval_jac_g_eq = grad_constraint_gradient,
         opts = list(
-          "algorithm" = "NLOPT_LD_AUGLAG_EQ",  # Sequential quadratic programming
+          maximize = TRUE,
+          "algorithm" = "NLOPT_LD_SLSQP",  # Sequential quadratic programming
           "maxeval" = 500,
           "xtol_rel" = 1e-6
         )
       )
       
-      phi_neg <- max(phi_neg, min(exp(result$objective), 1 - 2 * alpha_n))
+      phi_neg <- max(phi_neg, min(result$objective - mle_lik, log(1 - 2 * alpha_n)))
       
-      alpha_neg_values[i] <- result$solution
+      alpha_neg_values[[i]] <- result$solution
+      
+      cat("n_it", result$iterations)
     }
     
     Q_p <- Q_p[Q_p != alpha_p]
@@ -316,6 +304,15 @@ evaluate <- function(df, x1, x2) {
   if (is.na(phi_pos) || is.na(phi_neg)) {
     return(c(NA, NA, NA, NA))
   }
+  
+  cat("pp", phi_pos)
+  cat("pn", phi_neg)
+  
+  phi_pos <- exp(phi_pos)
+  phi_neg <- exp(phi_neg)
+  
+  cat("pp_exp", phi_pos)
+  cat("pn_exp", phi_neg)
   
   # Compute u_a and u_e
   u_a <- min(1 - phi_pos, 1 - phi_neg)
@@ -334,3 +331,34 @@ evaluate <- function(df, x1, x2) {
   
   return(c(u_a, u_e, p_pos, p_neg))
 }
+
+
+# try out for observation
+
+evaluate(df, 0, 0)
+
+# Generate dataset
+df <- generate_data(n = 100, separation = 2, noise = 0.1, ood_fraction = 0)
+
+# Plot the data
+ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
+  geom_point(size = 3, alpha = 0.7) +
+  scale_color_manual(values = c("blue", "red", "black"), na.value = "gray") +
+  labs(title = "Synthetic Data for Logistic Regression",
+       color = "Class (NA = OOD)") +
+  theme_minimal()
+
+
+al_u <- c()
+ep_u <- c()
+result <- list()
+  
+for (i in 1:5) {
+  df <- generate_data(n = 10^i, separation = 2, noise = 0.3, ood_fraction = 0)
+  result[[i]] <- evaluate(df, -2.5, -2.5)
+  al_u[i] <- result[[i]][1]
+  ep_u[i] <- result[[i]][2]
+}
+
+plot(al_u)
+plot(ep_u)
