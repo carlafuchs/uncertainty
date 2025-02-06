@@ -178,6 +178,8 @@ evaluate <- function(df, x1, x2) {
   # Extract MLE estimates
   mle_coef <- coef(logit_model)
   
+  cat("MLE: ", mle_coef)
+  
   logit <- function(x) {
     log(x / (1 - x))
   }
@@ -208,7 +210,9 @@ evaluate <- function(df, x1, x2) {
   phi_neg <- log(rhs_neg(mle_coef))
   
   alpha_pos_values <- list()      
-  alpha_neg_values <- list()    
+  alpha_neg_values <- list()
+  alpha_pos_values[[1]] <- mle_coef
+  alpha_neg_values[[1]] <- mle_coef
   
   objective_function <- function(coeff) {
     return(log_likelihood(coeff, df$X1, df$X2, df$y))
@@ -246,7 +250,7 @@ evaluate <- function(df, x1, x2) {
       
       # Run optimization with constraints
       result <- nloptr(
-        x0 = mle_coef, 
+        x0 = alpha_pos_values[[i]], 
         eval_f = objective_function,  # Objective function
         eval_grad_f = grad_objective_function,
         eval_g_ineq = NULL,           # No inequality constraints
@@ -260,11 +264,13 @@ evaluate <- function(df, x1, x2) {
         )
       )
       
+      cat("POS: ", result$solution)
+      
       phi_pos <- max(phi_pos, min(result$objective - mle_lik, log(2 * alpha_p - 1)))
       
-      alpha_pos_values[[i]] <- result$solution
+      cat("PHI_POS: ", phi_pos)
       
-      cat("n_it", result$iterations)
+      alpha_pos_values[[i + 1]] <- result$solution
     }
     
     if(1 - 2 * alpha_n > phi_neg) {
@@ -275,7 +281,7 @@ evaluate <- function(df, x1, x2) {
       
       # Run optimization with constraints
       result <- nloptr(
-        x0 = mle_coef, 
+        x0 = alpha_neg_values[[i]], 
         eval_f = objective_function,  # Objective function
         eval_grad_f = grad_objective_function,
         eval_g_ineq = NULL,           # No inequality constraints
@@ -289,11 +295,13 @@ evaluate <- function(df, x1, x2) {
         )
       )
       
+      cat("NEG: ", result$solution)
+      
       phi_neg <- max(phi_neg, min(result$objective - mle_lik, log(1 - 2 * alpha_n)))
       
-      alpha_neg_values[[i]] <- result$solution
+      cat("PHI_NEG: ", phi_neg)
       
-      cat("n_it", result$iterations)
+      alpha_neg_values[[i + 1]] <- result$solution
     }
     
     Q_p <- Q_p[Q_p != alpha_p]
@@ -338,7 +346,7 @@ evaluate <- function(df, x1, x2) {
 evaluate(df, 0, 0)
 
 # Generate dataset
-df <- generate_data(n = 100, separation = 2, noise = 0.1, ood_fraction = 0)
+df <- generate_data(n = 20, separation = 2, noise = 0.1, ood_fraction = 0)
 
 # Plot the data
 ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
@@ -354,7 +362,7 @@ ep_u <- c()
 result <- list()
   
 for (i in 1:5) {
-  df <- generate_data(n = 10^i, separation = 2, noise = 0.3, ood_fraction = 0)
+  df <- generate_data(n = 100*i, separation = 2, noise = 0.3, ood_fraction = 0)
   result[[i]] <- evaluate(df, -2.5, -2.5)
   al_u[i] <- result[[i]][1]
   ep_u[i] <- result[[i]][2]
