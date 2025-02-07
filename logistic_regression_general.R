@@ -42,8 +42,8 @@ evaluate <- function(df, x_values) {
   Q_p <- seq(0.5, 1, length.out = 52)[-c(1, 52)]
   Q_n <- seq(0, 0.5, length.out = 52)[-c(1, 52)]
   
-  phi_pos <- log(rhs_pos(mle_coef))
-  phi_neg <- log(rhs_neg(mle_coef))
+  phi_pos <- rhs_pos(mle_coef)
+  phi_neg <- rhs_neg(mle_coef)
   
   alpha_pos_values <- list()      
   alpha_neg_values <- list()
@@ -94,7 +94,7 @@ evaluate <- function(df, x_values) {
       
       cat("POS: ", result$solution, "\n")
       
-      phi_pos <- max(phi_pos, min(result$objective - mle_lik, log(2 * alpha_p - 1)))
+      phi_pos <- max(phi_pos, min(exp(result$objective - mle_lik), 2 * alpha_p - 1))
       
       cat("PHI_POS: ", phi_pos, "\n")
       
@@ -125,7 +125,7 @@ evaluate <- function(df, x_values) {
       
       cat("NEG: ", result$solution, "\n")
       
-      phi_neg <- max(phi_neg, min(result$objective - mle_lik, log(1 - 2 * alpha_n)))
+      phi_neg <- max(phi_neg, min(exp(result$objective - mle_lik), 1 - 2 * alpha_n))
       
       cat("PHI_NEG: ", phi_neg, "\n")
       
@@ -142,12 +142,6 @@ evaluate <- function(df, x_values) {
   
   cat("pp", phi_pos, "\n")
   cat("pn", phi_neg, "\n")
-  
-  phi_pos <- exp(phi_pos)
-  phi_neg <- exp(phi_neg)
-  
-  cat("pp_exp", phi_pos, "\n")
-  cat("pn_exp", phi_neg, "\n")
   
   u_a <- min(1 - phi_pos, 1 - phi_neg)
   u_e <- min(phi_pos, phi_neg)
@@ -175,9 +169,9 @@ ionosphere$y <- sub("b", 0, ionosphere$y)
 ionosphere$y <- as.numeric(ionosphere$y)
 ionosphere$V2 <- NULL
 
-[sample(1:351, 50),]
 
-evaluate(ionosphere, c(1, 0.99539, -0.05889, 0.85243 ,0.02306 ,0.83398 ,-0.37708 ,1.00000 ,0.03760 , 
+
+evaluate(ionosphere[sample(1:351, 50),], c(1, 0.99539, -0.05889, 0.85243 ,0.02306 ,0.83398 ,-0.37708 ,1.00000 ,0.03760 , 
                        0.85243 ,-0.17755 ,0.59755 ,-0.44945 ,0.60536 ,-0.38223 ,0.84356 ,-0.38542 ,0.58212 ,
                        -0.32192 ,0.56971 ,-0.29674 ,0.36946 ,-0.47357 ,0.56811 ,-0.51171 ,0.41078 ,-0.46168 ,
                        0.21266 ,-0.34090 ,0.42267 ,-0.54487 ,0.18641 ,-0.45300))

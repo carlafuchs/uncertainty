@@ -2,6 +2,7 @@
 library(ggplot2)
 library(cmaes)
 library(nloptr)
+library(alabama)
 
 # Set seed for reproducibility
 set.seed(123)
@@ -206,8 +207,8 @@ evaluate <- function(df, x1, x2) {
   Q_p <- seq(0.5, 1, length.out = 52)[-c(1, 52)]
   Q_n <- seq(0, 0.5, length.out = 52)[-c(1, 52)]
   
-  phi_pos <- log(rhs_pos(mle_coef))
-  phi_neg <- log(rhs_neg(mle_coef))
+  phi_pos <- rhs_pos(mle_coef)
+  phi_neg <- rhs_neg(mle_coef)
   
   alpha_pos_values <- list()      
   alpha_neg_values <- list()
@@ -242,15 +243,20 @@ evaluate <- function(df, x1, x2) {
     alpha_p <- max(Q_p)
     alpha_n <- min(Q_n)
     
+    print(alpha_p)
+    print(alpha_n)
+    
     if(2 * alpha_p - 1 > phi_pos) {
 
       constraint_function <- function(coeff) {
         return(coeff[1] + coeff[2] * x1 + coeff[3] * x2 - logit(alpha_p))
       }
       
+      cat("constraint", constraint_function(mle_coef))
+      
       # Run optimization with constraints
       result <- nloptr(
-        x0 = alpha_pos_values[[i]], 
+        x0 = c(0,0,0), 
         eval_f = objective_function,  # Objective function
         eval_grad_f = grad_objective_function,
         eval_g_ineq = NULL,           # No inequality constraints
@@ -260,13 +266,13 @@ evaluate <- function(df, x1, x2) {
           maximize = TRUE,
           "algorithm" = "NLOPT_LD_SLSQP",  # Sequential quadratic programming
           "maxeval" = 500,
-          "xtol_rel" = 1e-6
+          "xtol_rel" = 1e-20
         )
       )
       
       cat("POS: ", result$solution)
       
-      phi_pos <- max(phi_pos, min(result$objective - mle_lik, log(2 * alpha_p - 1)))
+      phi_pos <- max(phi_pos, min(exp(result$objective - mle_lik), 2 * alpha_p - 1))
       
       cat("PHI_POS: ", phi_pos)
       
@@ -281,7 +287,7 @@ evaluate <- function(df, x1, x2) {
       
       # Run optimization with constraints
       result <- nloptr(
-        x0 = alpha_neg_values[[i]], 
+        x0 = c(0,0,0), 
         eval_f = objective_function,  # Objective function
         eval_grad_f = grad_objective_function,
         eval_g_ineq = NULL,           # No inequality constraints
@@ -291,13 +297,13 @@ evaluate <- function(df, x1, x2) {
           maximize = TRUE,
           "algorithm" = "NLOPT_LD_SLSQP",  # Sequential quadratic programming
           "maxeval" = 500,
-          "xtol_rel" = 1e-6
+          "xtol_rel" = 1e-20
         )
       )
       
       cat("NEG: ", result$solution)
       
-      phi_neg <- max(phi_neg, min(result$objective - mle_lik, log(1 - 2 * alpha_n)))
+      phi_neg <- max(phi_neg, min(exp(result$objective - mle_lik), 1 - 2 * alpha_n))
       
       cat("PHI_NEG: ", phi_neg)
       
@@ -315,12 +321,6 @@ evaluate <- function(df, x1, x2) {
   
   cat("pp", phi_pos)
   cat("pn", phi_neg)
-  
-  phi_pos <- exp(phi_pos)
-  phi_neg <- exp(phi_neg)
-  
-  cat("pp_exp", phi_pos)
-  cat("pn_exp", phi_neg)
   
   # Compute u_a and u_e
   u_a <- min(1 - phi_pos, 1 - phi_neg)
