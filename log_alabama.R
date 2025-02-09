@@ -1,6 +1,6 @@
 library(alabama)
 
-evaluate <- function(df, x1, x2) {
+evaluate_a <- function(df, x1, x2) {
   
   logit_model <- glm(y ~ X1 + X2, data = df, family = binomial)
   mle_coef <- coef(logit_model)
@@ -95,12 +95,68 @@ evaluate <- function(df, x1, x2) {
   u_a <- min(1 - phi_pos, 1 - phi_neg)
   u_e <- min(phi_pos, phi_neg)
   
-  p_pos <- ifelse(phi_pos > phi_neg, 1 - (u_a + u_e), (1 - (u_a + u_e)) / 2)
+
+  # Compute probabilities p_pos and p_neg
+  if (phi_pos > phi_neg) {
+    p_pos <- 1 - (u_a + u_e)
+  } else if (phi_pos == phi_neg) {
+    p_pos <- (1 - (u_a + u_e)) / 2
+  } else {
+    p_pos <- 0
+  }
+  
   p_neg <- 1 - (p_pos + u_a + u_e)
   
   return(c(u_a, u_e, p_pos, p_neg))
 }
 
-df <- generate_data(n = 150, separation = 2, noise = 0.1, ood_fraction = 0)
 
-evaluate(df, 0, 0)
+# Function to generate synthetic data
+generate_data <- function(n = 200, separation = 2, noise = 0.1, ood_fraction = 0.1) {
+  
+  # Generate two class centers
+  mu_1 <- c(-separation, -separation)  # Class 0 center
+  mu_2 <- c(separation, separation)    # Class 1 center
+  
+  # Generate class 0 samples
+  X0 <- matrix(rnorm(n, mean = rep(mu_1, each = n/2), sd = 1), ncol = 2)
+  y0 <- rep(0, n/2)  # Class 0 labels
+  
+  # Generate class 1 samples
+  X1 <- matrix(rnorm(n, mean = rep(mu_2, each = n/2), sd = 1), ncol = 2)
+  y1 <- rep(1, n/2)  # Class 1 labels
+  
+  # Combine datasets
+  X <- rbind(X0, X1)
+  y <- c(y0, y1)
+  
+  # Add aleatoric uncertainty (flip labels with noise probability)
+  flip_indices <- sample(1:n, size = round(noise * n), replace = FALSE)
+  y[flip_indices] <- 1 - y[flip_indices]  # Flip labels
+  
+  # Generate Out-of-Distribution (OOD) samples
+  num_ood <- round(n * ood_fraction)
+  X_ood <- matrix(rnorm(num_ood * 2, mean = 0, sd = 4), ncol = 2)  # More spread out
+  y_ood <- rep(NA, num_ood)  # Mark OOD samples with NA (unknown class)
+  
+  # Merge OOD samples with training data
+  X <- rbind(X, X_ood)
+  y <- c(y, y_ood)
+  
+  # Create dataframe
+  df <- data.frame(X1 = X[,1], X2 = X[,2], y = y)
+  
+  return(df)
+}
+
+df <- generate_data(n = 100, separation = 2, noise = 0.1, ood_fraction = 0)
+
+# Plot the data
+ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
+  geom_point(size = 3, alpha = 0.7) +
+  scale_color_manual(values = c("blue", "red", "black"), na.value = "gray") +
+  labs(title = "Synthetic Data for Logistic Regression",
+       color = "Class (NA = OOD)") +
+  theme_minimal()
+
+evaluate_a(df, -1, 50)
