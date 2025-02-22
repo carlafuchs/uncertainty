@@ -1,4 +1,6 @@
 library(alabama)
+library(ggplot2)
+library(patchwork)
 
 evaluate_a <- function(df, x1, x2) {
   
@@ -149,14 +151,76 @@ generate_data <- function(n = 200, separation = 2, noise = 0.1, ood_fraction = 0
   return(df)
 }
 
-df <- generate_data(n = 100, separation = 2, noise = 0.1, ood_fraction = 0)
+
+
+highlight_x <- c(-2, 0, 0)
+highlight_y <- c(-2, -2, 0)
+plots_list <- list()
+
+for (i in 1:3) {
+  plots_list[[i]] <- ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_point(x = highlight_x[i], y = highlight_y[i], color = "red", size = 4) +  # Highlighted point
+  geom_text(x = highlight_x[i], y = highlight_y[i], label = expression(x[q]), 
+            vjust = -1, hjust = 1, color = "red", fontface = "bold") +  # Annotation
+  scale_color_manual(values = c("#1f77b4", "#ff7f0e", "black"), na.value = "gray") +
+  labs(title = "Synthetic Data for Logistic Regression",
+       color = "Class")  +
+  ggtitle(NULL) +
+  theme_minimal()
+}
 
 # Plot the data
+
+
+combined_plot <- (plots_list[[1]] | plots_list[[2]] | plots_list[[3]]) + 
+  plot_layout(guides = "collect")
+
+
+results_1_03 <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
+
+for (i in seq.int(from = 20, to = 500, by = 10)) {
+  df <- generate_data(n = i, separation = 2, noise = 0.3, ood_fraction = 0)
+  results_1_03[results_1_03$index == i, c(2:5)] <- evaluate_a(df, 0, 0)
+}
+
+x1 <- c(-2, 0, 0)
+x2 <- c(-2, -2, 0)
+noise_v <- c(0.1, 0.3, 0.5)
+separation_v <- c(0.4, 1.2, 2)
+
+list_results <- list()
+
+for (i in 1:3) {
+  
+  list_results[[i]] <- list()
+  
+  for(j in 1:3) {
+    list_results[[i]][[j]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
+    for (k in seq.int(from = 20, to = 500, by = 10)) {
+      df <- generate_data(n = k, separation = 2, noise = noise_v[j], ood_fraction = 0)
+      list_results[[i]][[j]][list_results[[i]][[j]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
+    }
+  }
+  
+  for(j in 1:3) {
+    list_results[[i]][[j + 3]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
+    for (k in seq.int(from = 20, to = 500, by = 10)) {
+      df <- generate_data(n = k, separation = separation_v[j], noise = 0.1, ood_fraction = 0)
+      list_results[[i]][[j + 3]][list_results[[i]][[j + 3]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
+    }
+  }
+  
+}
+
+evaluate_a(df, 0, 0)
+
+
+df <- generate_data(n = 100, separation = 0.4, noise = 0.1, ood_fraction = 0)
 ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
   geom_point(size = 3, alpha = 0.7) +
-  scale_color_manual(values = c("blue", "red", "black"), na.value = "gray") +
+  scale_color_manual(values = c("#1f77b4", "#ff7f0e", "black"), na.value = "gray") +
   labs(title = "Synthetic Data for Logistic Regression",
-       color = "Class (NA = OOD)") +
+       color = "Class")  +
+  ggtitle(NULL) +
   theme_minimal()
-
-evaluate_a(df, -1, 50)
