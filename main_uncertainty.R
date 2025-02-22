@@ -1,10 +1,12 @@
 library(ggplot2)
-
+library(dplyr)
+library(tidyr)
+library(viridisLite)
 # Set seed for reproducibility
 set.seed(123)
 
 # Define the Bernoulli probability
-p_0 <- 0.6  # Probability of success
+p_0 <- 0.1  # Probability of success
 
 # Number of draws
 n <- 500
@@ -128,13 +130,72 @@ for (t in 1:n) {
       "p_pos", eval_result[3], "p_neg", eval_result[4], 
       "root_pos", eval_result[5], "root_neg", eval_result[6], "\n")
 }
-
 # Create a data frame for plotting
-df <- data.frame(
+df_01 <- data.frame(
   Step = 1:n,
   u_a = u_a_values,
   u_e = u_e_values
 )
+
+
+# # Create a data frame for plotting
+# df_03 <- data.frame(
+#   Step = 1:n,
+#   u_a = u_a_values,
+#   u_e = u_e_values
+# )
+
+# Create a data frame for plotting
+df_05 <- data.frame(
+  Step = 1:n,
+  u_a = u_a_values,
+  u_e = u_e_values
+)
+
+df_final <- cbind(df_01, df_03, df_05)
+
+colnames(df_final) <- c("step", "a1", "e1", "step2", "a2", "e2","step3", "a3", "e3")
+
+df_final_a <- df_final %>% 
+  select(step, a1, a2, a3) %>%
+  rename("0.1" = a1, "0.3" = a2, "0.5" = a3) %>%
+  pivot_longer(cols = c("0.1", "0.3", "0.5"))
+
+
+ggplot(df_final_a, aes(x = step, y = value, color = name)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Bernoulli - Aleatoric Uncertainty",
+       x = "Instances",
+       y = "Value",
+       color = "p =") +
+  theme_minimal()
+
+ggplot(df_final_a, aes(x = step, y = value, color = name)) +
+  geom_line(size = 0.6) +  # Thinner lines
+  geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+  scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+  labs(title = "Bernoulli - Aleatoric Uncertainty",
+       x = "Instances",
+       y = "Value",
+       color = "p =") +
+  theme_minimal()
+
+df_final_e <- df_final %>% 
+  select(step, e1, e2, e3) %>%
+  rename("0.1" = e1, "0.3" = e2, "0.5" = e3) %>%
+  pivot_longer(cols = c("0.1", "0.3", "0.5"))
+
+
+ggplot(df_final_e, aes(x = step, y = value, color = name)) +
+  geom_line(size = 0.6) +  # Thinner lines
+  geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+  scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+  labs(title = "Bernoulli - Epistemic Uncertainty",
+       x = "Instances",
+       y = "Value",
+       color = "p =") +
+  theme_minimal()
 
 # Plot u_a and u_e over time
 ggplot(df, aes(x = Step)) +
@@ -148,3 +209,6 @@ ggplot(df, aes(x = Step)) +
        color = "Legend") +
   theme_minimal() +
   scale_color_manual(values = c("u_a" = "blue", "u_e" = "red"))
+
+
+

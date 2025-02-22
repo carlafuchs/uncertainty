@@ -114,18 +114,18 @@ evaluate_a <- function(df, x1, x2) {
 
 
 # Function to generate synthetic data
-generate_data <- function(n = 200, separation = 2, noise = 0.1, ood_fraction = 0.1) {
+generate_data <- function(n = 200, separation = 2, variation = 1, noise = 0.1, ood_fraction = 0.1) {
   
   # Generate two class centers
   mu_1 <- c(-separation, -separation)  # Class 0 center
   mu_2 <- c(separation, separation)    # Class 1 center
   
   # Generate class 0 samples
-  X0 <- matrix(rnorm(n, mean = rep(mu_1, each = n/2), sd = 1), ncol = 2)
+  X0 <- matrix(rnorm(n, mean = rep(mu_1, each = n/2), sd = variation), ncol = 2)
   y0 <- rep(0, n/2)  # Class 0 labels
   
   # Generate class 1 samples
-  X1 <- matrix(rnorm(n, mean = rep(mu_2, each = n/2), sd = 1), ncol = 2)
+  X1 <- matrix(rnorm(n, mean = rep(mu_2, each = n/2), sd = variation), ncol = 2)
   y1 <- rep(1, n/2)  # Class 1 labels
   
   # Combine datasets
@@ -162,7 +162,7 @@ for (i in 1:3) {
   geom_point(size = 3, alpha = 0.7) +
   geom_point(x = highlight_x[i], y = highlight_y[i], color = "red", size = 4) +  # Highlighted point
   geom_text(x = highlight_x[i], y = highlight_y[i], label = expression(x[q]), 
-            vjust = -1, hjust = 1, color = "red", fontface = "bold") +  # Annotation
+              vjust = -1, hjust = 1, color = "red", fontface = "bold") +  # Annotation
   scale_color_manual(values = c("#1f77b4", "#ff7f0e", "black"), na.value = "gray") +
   labs(title = "Synthetic Data for Logistic Regression",
        color = "Class")  +
@@ -170,11 +170,47 @@ for (i in 1:3) {
   theme_minimal()
 }
 
-# Plot the data
-
-
 combined_plot <- (plots_list[[1]] | plots_list[[2]] | plots_list[[3]]) + 
   plot_layout(guides = "collect")
+
+
+noise_v <- c(0.1, 0.3, 0.5)
+separation_v <- c(0.4, 1.2, 2)
+plots_list2 <- list()
+labels2 <- c("Noise = 0.1","Noise = 0.3", "Noise = 0.5")
+labels3 <- c("Separation = 0.4", "Separation = 1.2", "Separation = 2")
+
+for (i in 1:3) {
+  df <- generate_data(n = 100, separation = 2, noise = noise_v[i], ood_fraction = 0)
+  plots_list2[[i]] <- ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
+    geom_point(size = 3, alpha = 0.7) +
+    scale_color_manual(values = c("#1f77b4", "#ff7f0e", "black"), na.value = "gray") +
+    labs(title = labels2[i],
+         color = "Class") +
+    theme_minimal()
+}
+
+combined_plot2 <- (plots_list2[[1]] | plots_list2[[2]] | plots_list2[[3]]) + 
+  plot_layout(guides = "collect")
+
+
+plots_list3 <- list()
+
+for (i in 1:3) {
+  df <- generate_data(n = 100, separation = separation_v[i], noise = 0.1, ood_fraction = 0)
+  plots_list3[[i]] <- ggplot(df, aes(x = X1, y = X2, color = factor(y))) +
+    geom_point(size = 3, alpha = 0.7) +
+    scale_color_manual(values = c("#1f77b4", "#ff7f0e", "black"), na.value = "gray") +
+    labs(title = labels3[i],
+         color = "Class")  +
+    theme_minimal()
+}
+
+# Plot the data
+combined_plot3 <- (plots_list3[[1]] | plots_list3[[2]] | plots_list3[[3]]) + 
+  plot_layout(guides = "collect")
+
+
 
 
 results_1_03 <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
@@ -184,36 +220,139 @@ for (i in seq.int(from = 20, to = 500, by = 10)) {
   results_1_03[results_1_03$index == i, c(2:5)] <- evaluate_a(df, 0, 0)
 }
 
-x1 <- c(-2, 0, 0)
-x2 <- c(-2, -2, 0)
-noise_v <- c(0.1, 0.3, 0.5)
-separation_v <- c(0.4, 1.2, 2)
+# x1 <- c(-2, 0, 0)
+# x2 <- c(-2, -2, 0)
+# noise_v <- c(0.1, 0.3, 0.5)
+# separation_v <- c(0.4, 1.2, 2)
+#
+# list_results <- list()
+# 
+# for (i in 1:3) {
+#   
+#   list_results[[i]] <- list()
+#   
+#   for(j in 1:3) {
+#     list_results[[i]][[j]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
+#     for (k in seq.int(from = 20, to = 500, by = 10)) {
+#       df <- generate_data(n = k, separation = 2, noise = noise_v[j], ood_fraction = 0)
+#       list_results[[i]][[j]][list_results[[i]][[j]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
+#     }
+#   }
+#   
+#   for(j in 1:3) {
+#     list_results[[i]][[j + 3]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
+#     for (k in seq.int(from = 20, to = 500, by = 10)) {
+#       df <- generate_data(n = k, separation = separation_v[j], noise = 0.1, ood_fraction = 0)
+#       list_results[[i]][[j + 3]][list_results[[i]][[j + 3]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
+#     }
+#   }
+#   
+# }
 
-list_results <- list()
+plots_list_al_n <- list()
 
 for (i in 1:3) {
-  
-  list_results[[i]] <- list()
-  
-  for(j in 1:3) {
-    list_results[[i]][[j]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
-    for (k in seq.int(from = 20, to = 500, by = 10)) {
-      df <- generate_data(n = k, separation = 2, noise = noise_v[j], ood_fraction = 0)
-      list_results[[i]][[j]][list_results[[i]][[j]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
-    }
-  }
-  
-  for(j in 1:3) {
-    list_results[[i]][[j + 3]] <- data.frame(index = seq.int(from = 20, to = 500, by = 10), u_a = NA, u_e = NA, p_pos = NA, p_neg = NA)
-    for (k in seq.int(from = 20, to = 500, by = 10)) {
-      df <- generate_data(n = k, separation = separation_v[j], noise = 0.1, ood_fraction = 0)
-      list_results[[i]][[j + 3]][list_results[[i]][[j + 3]]$index == k, c(2:5)] <- evaluate_a(df, x1[i], x2[i])
-    }
-  }
-  
+  al_data_1_n <- cbind(list_results[[i]][[1]], list_results[[i]][[2]], list_results[[i]][[3]])
+  colnames(al_data_1_n) <- c("step1", "a1", "e1", "pp1", "pn1", "step2", "a2", "e2", "pp2", "pn2", "step3", "a3", "e3", "pp3", "pn3")
+
+  al_data_1_n <- al_data_1_n %>%
+    select(step1, a1, a2, a3) %>%
+    rename("0.1" = a1, "0.3" = a2, "0.5" = a3) %>%
+    pivot_longer(cols = c("0.1", "0.3", "0.5"))
+
+  plots_list_al_n[[i]] <- ggplot(al_data_1_n, aes(x = step1, y = value, color = name)) +
+    geom_line(size = 0.6) +  # Thinner lines
+    geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+    scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+    labs(title = "Aleatoric Uncertainty",
+         x = "Instances",
+         y = "Value",
+         color = "Noise =") +
+    theme_minimal() +
+    ylim(0,1)
 }
 
-evaluate_a(df, 0, 0)
+combined_plot_al_n <- (plots_list_al_n[[1]] | plots_list_al_n[[2]] | plots_list_al_n[[3]]) + 
+  plot_layout(guides = "collect")
+
+plots_list_al_s <- list()
+
+for (i in 1:3) {
+  al_data_1_s <- cbind(list_results[[i]][[4]], list_results[[i]][[5]], list_results[[i]][[6]])
+  colnames(al_data_1_s) <- c("step1", "a1", "e1", "pp1", "pn1", "step2", "a2", "e2", "pp2", "pn2", "step3", "a3", "e3", "pp3", "pn3")
+  
+  al_data_1_s <- al_data_1_s %>%
+    select(step1, a1, a2, a3) %>%
+    rename("0.4" = a1, "1.2" = a2, "2" = a3) %>%
+    pivot_longer(cols = c("0.4", "1.2", "2"))
+  
+  plots_list_al_s[[i]] <- ggplot(al_data_1_s, aes(x = step1, y = value, color = name)) +
+    geom_line(size = 0.6) +  # Thinner lines
+    geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+    scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+    labs(title = "Aleatoric Uncertainty",
+         x = "Instances",
+         y = "Value",
+         color = "Separation =") +
+    theme_minimal() +
+    ylim(0,1)
+}
+
+combined_plot_al_s <- (plots_list_al_s[[1]] | plots_list_al_s[[2]] | plots_list_al_s[[3]]) + 
+  plot_layout(guides = "collect")
+
+plots_list_ep_n <- list()
+
+for (i in 1:3) {
+  ep_data_1_n <- cbind(list_results[[i]][[1]], list_results[[i]][[2]], list_results[[i]][[3]])
+  colnames(ep_data_1_n) <- c("step1", "a1", "e1", "pp1", "pn1", "step2", "a2", "e2", "pp2", "pn2", "step3", "a3", "e3", "pp3", "pn3")
+  
+  ep_data_1_n <- ep_data_1_n %>%
+    select(step1, e1, e2, e3) %>%
+    rename("0.1" = e1, "0.3" = e2, "0.5" = e3) %>%
+    pivot_longer(cols = c("0.1", "0.3", "0.5"))
+  
+  plots_list_ep_n[[i]] <- ggplot(ep_data_1_n, aes(x = step1, y = value, color = name)) +
+    geom_line(size = 0.6) +  # Thinner lines
+    geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+    scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+    labs(title = "Epistemic Uncertainty",
+         x = "Instances",
+         y = "Value",
+         color = "Noise =") +
+    theme_minimal() +
+    ylim(0,1)
+}
+
+combined_plot_ep_n <- (plots_list_ep_n[[1]] | plots_list_ep_n[[2]] | plots_list_ep_n[[3]]) + 
+  plot_layout(guides = "collect")
+
+plots_list_ep_s <- list()
+
+for (i in 1:3) {
+  ep_data_1_s <- cbind(list_results[[i]][[4]], list_results[[i]][[5]], list_results[[i]][[6]])
+  colnames(ep_data_1_s) <- c("step1", "a1", "e1", "pp1", "pn1", "step2", "a2", "e2", "pp2", "pn2", "step3", "a3", "e3", "pp3", "pn3")
+  
+  ep_data_1_s <- ep_data_1_s %>%
+    select(step1, e1, e2, e3) %>%
+    rename("0.4" = e1, "1.2" = e2, "2" = e3) %>%
+    pivot_longer(cols = c("0.4", "1.2", "2"))
+  
+  plots_list_ep_s[[i]] <- ggplot(ep_data_1_s, aes(x = step1, y = value, color = name)) +
+    geom_line(size = 0.6) +  # Thinner lines
+    geom_point(size = 1.8, alpha = 0.8) +  # Adjust point size & transparency
+    scale_color_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +  # Better colors
+    labs(title = "Epistemic Uncertainty",
+         x = "Instances",
+         y = "Value",
+         color = "Separation =") +
+    theme_minimal() +
+    ylim(0,1)
+}
+
+combined_plot_ep_s <- (plots_list_ep_s[[1]] | plots_list_ep_s[[2]] | plots_list_ep_s[[3]]) + 
+  plot_layout(guides = "collect")
+
 
 
 df <- generate_data(n = 100, separation = 0.4, noise = 0.1, ood_fraction = 0)
